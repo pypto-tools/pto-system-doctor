@@ -62,7 +62,8 @@ ALERT_COOLDOWN_HOURS=20
 ```
 
 `FEISHU_WEBHOOK` 属于凭据，配置文件默认权限为 `0600`，不得提交或输出。重复安装不会
-覆盖配置，也不会删除 `state/last_alert`。
+覆盖配置，也不会删除 `state/last_alert`。为保证部署目录统一，旧配置中的 `LOG_FILE`
+和 `STATE_DIR` 会被忽略，日志和冷却状态始终写入本工具的 `logs/` 与 `state/`。
 
 ## 定时报告与告警
 

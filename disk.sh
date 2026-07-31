@@ -27,10 +27,18 @@ CONF="${PTO_CONFIG_FILE:-${CONFIG_FILE:-$SCRIPT_DIR/runtime/config/system-doctor
 STATE_DIR="${STATE_DIR:-$SCRIPT_DIR/runtime/state}"
 LOG_DIR="${LOG_DIR:-$SCRIPT_DIR/runtime/logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/disk-monitor.log}"
+UNIFIED_STATE_DIR="$STATE_DIR"
+UNIFIED_LOG_FILE="$LOG_FILE"
 
 # shellcheck source=/dev/null
 [ -f "$CONF" ] || { echo "config not found: $CONF" >&2; exit 1; }
 source "$CONF"
+
+# Mutable files always stay in the resolved source/installed runtime tree.
+# Legacy configs may still contain LOG_FILE or STATE_DIR; ignore those values
+# during migration rather than continuing to depend on an old checkout path.
+STATE_DIR="$UNIFIED_STATE_DIR"
+LOG_FILE="$UNIFIED_LOG_FILE"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
 
