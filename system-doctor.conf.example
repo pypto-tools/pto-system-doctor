@@ -1,0 +1,17 @@
+# Copy to disk_monitor.conf and adjust for the current machine.
+# disk_monitor.conf contains secrets and is intentionally ignored by Git.
+
+MOUNT_POINT="/"
+SCAN_DIR="/home"
+THRESHOLD_PCT=10
+EXTRA_ALERT_MOUNTS="/:5"
+TOP_N=20
+
+# Feishu (Lark) custom-bot settings.
+FEISHU_WEBHOOK=""
+FEISHU_KEYWORD=""
+
+DU_TIMEOUT=1800
+ALERT_COOLDOWN_HOURS=20
+
+# LOG_FILE and STATE_DIR default to the unified logs/ and state/ directories.

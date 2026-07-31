@@ -1,0 +1,9 @@
+[Unit]
+Description=Check disk free space on weekdays and alert if below threshold
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

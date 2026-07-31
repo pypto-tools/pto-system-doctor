@@ -1,0 +1,7 @@
+runtime/
+*.log
+*.lock
+*.pid
+__pycache__/
+*.py[cod]
+system-doctor.conf

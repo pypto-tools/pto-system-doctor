@@ -1,0 +1,9 @@
+[Unit]
+Description=Disk usage weekly report to Feishu
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/pto-system-doctor disk report

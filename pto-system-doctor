@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  LINK_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" = /* ]] || SCRIPT_PATH="$LINK_DIR/$SCRIPT_PATH"
+done
+APP_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+. "$APP_DIR/runtime_paths.sh"
+usage() {
+  cat <<'EOF'
+用法：
+  pto-system-doctor network [--quick|--fix|--no-color]
+  pto-system-doctor disk report
+  pto-system-doctor disk alert
+  pto-system-doctor systemd {status|install|enable|disable|uninstall}
+
+network  诊断 DNS、代理、出口、路由和主机负载，不修改系统配置
+disk     生成磁盘报告或在空间不足时向飞书告警
+systemd  显式管理磁盘报告/告警定时任务（修改系统时需要 root）
+EOF
+}
+case "${1:-}" in
+  network) shift; exec "$APP_DIR/network.sh" "$@" ;;
+  disk) shift; exec "$APP_DIR/disk.sh" "$@" ;;
+  systemd) shift; exec "$APP_DIR/systemd-manage.sh" "$@" ;;
+  -h|--help|help|"") usage ;;
+  *) echo "未知子命令：$1" >&2; usage >&2; exit 2 ;;
+esac

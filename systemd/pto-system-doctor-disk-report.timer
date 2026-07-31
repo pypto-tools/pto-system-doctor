@@ -1,0 +1,9 @@
+[Unit]
+Description=Run disk usage report weekly (Tuesday 10:00)
+
+[Timer]
+OnCalendar=Tue *-*-* 10:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
