@@ -2,7 +2,7 @@
 
 > 面向共享 Linux 开发机的网络与磁盘健康诊断工具。
 
-`system-doctor` 合并了原 `net-doctor` 和 `disk_monitor`：网络诊断负责检查 DNS、代理、
+`pto-system-doctor` 合并了原 `net-doctor` 和 `disk_monitor`：网络诊断负责检查 DNS、代理、
 公网出口、路由及主机负载；磁盘监控负责生成容量报告、列出大目录，并在空间低于阈值时
 继续通过飞书机器人发送告警。网络诊断只读，磁盘消息只会在显式执行 `disk report` 或
 满足告警条件的 `disk alert` 时发送。
@@ -26,7 +26,7 @@ pto-system-doctor disk alert           # 低于阈值时发送飞书告警
 正式安装默认布局：
 
 ```text
-/home/pypto-tools/system-doctor/
+/home/pto-tools/pto-system-doctor/
 ├── app/       # 程序，重装时更新
 ├── config/    # system-doctor.conf，升级不覆盖
 ├── state/     # 飞书告警冷却状态
@@ -38,7 +38,7 @@ pto-system-doctor disk alert           # 低于阈值时发送飞书告警
 
 ```bash
 sudo ./install.sh --init-config
-sudoedit /home/pypto-tools/system-doctor/config/system-doctor.conf
+sudoedit /home/pto-tools/pto-system-doctor/config/system-doctor.conf
 pto-system-doctor --help
 ```
 

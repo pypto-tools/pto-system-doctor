@@ -5,7 +5,7 @@ TEST_ROOT="$(mktemp -d)"; trap 'rm -rf -- "$TEST_ROOT"' EXIT
 TOOLS_ROOT="$TEST_ROOT/tools"; BIN_DIR="$TEST_ROOT/bin"
 
 "$REPO_DIR/install.sh" --tools-root "$TOOLS_ROOT" --bin-dir "$BIN_DIR" --init-config >/dev/null
-TOOL_ROOT="$TOOLS_ROOT/system-doctor"; CONFIG="$TOOL_ROOT/config/system-doctor.conf"
+TOOL_ROOT="$TOOLS_ROOT/pto-system-doctor"; CONFIG="$TOOL_ROOT/config/system-doctor.conf"
 for dir in app config state logs tmp; do [[ -d "$TOOL_ROOT/$dir" ]]; done
 [[ "$(stat -c '%a' "$TOOL_ROOT/app")" == 755 ]]
 [[ "$(stat -c '%a' "$CONFIG")" == 600 ]]
@@ -28,4 +28,14 @@ source_paths="$({ APP_DIR="$REPO_DIR"; source "$REPO_DIR/runtime_paths.sh"; prin
 $REPO_DIR/runtime/state" ]]
 grep -q 'send_feishu' "$REPO_DIR/disk.sh"
 grep -q 'FEISHU_WEBHOOK' "$REPO_DIR/disk.sh"
+
+MIGRATION_ROOT="$TEST_ROOT/migration-tools"
+mkdir -p "$MIGRATION_ROOT/system-doctor/config" "$MIGRATION_ROOT/system-doctor/state"
+printf 'legacy-config\n' > "$MIGRATION_ROOT/system-doctor/config/sentinel"
+printf 'legacy-state\n' > "$MIGRATION_ROOT/system-doctor/state/sentinel"
+"$REPO_DIR/install.sh" --tools-root "$MIGRATION_ROOT" \
+  --bin-dir "$TEST_ROOT/migration-bin" >/dev/null
+[[ ! -e "$MIGRATION_ROOT/system-doctor" ]]
+grep -qx legacy-config "$MIGRATION_ROOT/pto-system-doctor/config/sentinel"
+grep -qx legacy-state "$MIGRATION_ROOT/pto-system-doctor/state/sentinel"
 echo 'install/layout tests passed'
