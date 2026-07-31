@@ -84,3 +84,9 @@ timer 模板；`disable` 会停止 timer，`uninstall` 会移除 unit，但保�
 bash tests/test_install.sh
 git diff --check
 ```
+
+## AI Skill
+
+仓库内置 [`skills/pto-system-doctor/SKILL.md`](skills/pto-system-doctor/SKILL.md)，用于指导
+AI 安全选择网络诊断、磁盘只读检查、飞书发送和 systemd 管理流程，并明确区分只读操作与
+需要用户授权的外部消息或系统变更。

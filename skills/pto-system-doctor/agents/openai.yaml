@@ -1,0 +1,4 @@
+interface:
+  display_name: "System Doctor"
+  short_description: "安全诊断共享 Linux 主机的网络、磁盘与告警状态"
+  default_prompt: "Use $pto-system-doctor to diagnose this host safely and explain the findings."
