@@ -38,6 +38,11 @@ done
 mkdir -p "$STAGE_DIR/systemd" "$STAGE_DIR/docs"
 install -m 0644 "$SOURCE_DIR"/systemd/* "$STAGE_DIR/systemd/"
 install -m 0644 "$SOURCE_DIR/docs/NETWORK_RUNBOOK.md" "$STAGE_DIR/docs/"
+mkdir -p "$STAGE_DIR/skills/pto-system-doctor/agents"
+install -m 0644 "$SOURCE_DIR/skills/pto-system-doctor/SKILL.md" \
+  "$STAGE_DIR/skills/pto-system-doctor/"
+install -m 0644 "$SOURCE_DIR/skills/pto-system-doctor/agents/openai.yaml" \
+  "$STAGE_DIR/skills/pto-system-doctor/agents/"
 chmod 0755 "$STAGE_DIR" "$STAGE_DIR/pto-system-doctor" "$STAGE_DIR/network.sh" "$STAGE_DIR/disk.sh" "$STAGE_DIR/systemd-manage.sh"
 OLD_APP=""; if [[ -e "$APP_DIR" ]]; then OLD_APP="$TOOL_ROOT/.app.previous.$$"; mv "$APP_DIR" "$OLD_APP"; fi
 mv "$STAGE_DIR" "$APP_DIR"; trap - EXIT; [[ -z "$OLD_APP" ]] || rm -rf -- "$OLD_APP"

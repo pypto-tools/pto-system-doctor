@@ -11,6 +11,7 @@ for dir in app config state logs tmp; do [[ -d "$TOOL_ROOT/$dir" ]]; done
 [[ "$(stat -c '%a' "$CONFIG")" == 600 ]]
 [[ "$(readlink "$BIN_DIR/pto-system-doctor")" == "$TOOL_ROOT/app/pto-system-doctor" ]]
 [[ "$(find "$BIN_DIR" -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ]]
+[[ -f "$TOOL_ROOT/app/skills/pto-system-doctor/SKILL.md" ]]
 "$BIN_DIR/pto-system-doctor" --help | grep -q 'network'
 "$BIN_DIR/pto-system-doctor" network --help | grep -q '网络诊断'
 "$BIN_DIR/pto-system-doctor" disk --help | grep -q 'disk'
