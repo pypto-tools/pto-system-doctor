@@ -1,0 +1,26 @@
+[Unit]
+Description=System Doctor host resource guard
+After=local-fs.target pto-task.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/pto-system-doctor resource daemon
+Restart=on-failure
+RestartSec=5
+OOMScoreAdjust=-1000
+Nice=-10
+MemoryAccounting=yes
+MemoryLimit=64M
+TasksAccounting=yes
+TasksMax=32
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectHome=read-only
+ReadWritePaths=/home/pypto-tools/pto-system-doctor/state /home/pypto-tools/pto-system-doctor/logs /home/pypto-tools/pto-system-doctor/tmp /home/pypto-tools/pto-task/state
+
+[Install]
+WantedBy=multi-user.target

@@ -14,16 +14,22 @@ usage() {
   pto-system-doctor network [--quick|--fix|--no-color]
   pto-system-doctor disk report
   pto-system-doctor disk alert
+  pto-system-doctor resource {status|evaluate|victims|daemon|lease|override|history}
+  pto-system-doctor alert {status|worker|enqueue}
   pto-system-doctor systemd {status|install|enable|disable|uninstall}
 
 network  诊断 DNS、代理、出口、路由和主机负载，不修改系统配置
 disk     生成磁盘报告或在空间不足时向飞书告警
-systemd  显式管理磁盘报告/告警定时任务（修改系统时需要 root）
+resource 低开销资源监控、审计和分级保护
+alert    本地告警队列与独立飞书发送进程
+systemd  显式管理磁盘、资源和告警运行单元（修改系统时需要 root）
 EOF
 }
 case "${1:-}" in
   network) shift; exec "$APP_DIR/network.sh" "$@" ;;
   disk) shift; exec "$APP_DIR/disk.sh" "$@" ;;
+  resource) shift; export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"; cd "$APP_DIR"; exec python3 -m modules.resource.cli "$@" ;;
+  alert) shift; export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"; cd "$APP_DIR"; exec python3 -m modules.alert.cli "$@" ;;
   systemd) shift; exec "$APP_DIR/systemd-manage.sh" "$@" ;;
   -h|--help|help|"") usage ;;
   *) echo "未知子命令：$1" >&2; usage >&2; exit 2 ;;

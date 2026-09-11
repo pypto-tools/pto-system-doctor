@@ -1,0 +1,23 @@
+[Unit]
+Description=System Doctor asynchronous Feishu private-message and document worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/pto-system-doctor alert worker
+Restart=on-failure
+RestartSec=5
+MemoryAccounting=yes
+MemoryLimit=64M
+TasksAccounting=yes
+TasksMax=16
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pypto-tools/pto-system-doctor/state /home/pypto-tools/pto-system-doctor/logs /home/pypto-tools/pto-system-doctor/tmp
+
+[Install]
+WantedBy=multi-user.target

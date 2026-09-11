@@ -7,9 +7,32 @@ THRESHOLD_PCT=10
 EXTRA_ALERT_MOUNTS="/:5"
 TOP_N=20
 
-# Feishu (Lark) custom-bot settings.
+# Legacy Feishu custom-bot settings. Used only by disk configurations that keep
+# ALERT_DELIVERY="direct"; the asynchronous worker never posts to this webhook.
 FEISHU_WEBHOOK=""
 FEISHU_KEYWORD=""
+
+# Feishu self-built app. Critical events are sent as a private bot message.
+# FEISHU_RECEIVE_ID is normally the recipient's open_id (ou_...). The worker
+# also accepts NOTIFY_RECEIVE_ID/NOTIFY_RECEIVE_TYPE for simpler-tool parity.
+FEISHU_APP_ID=""
+FEISHU_APP_SECRET=""
+FEISHU_RECEIVE_ID=""
+FEISHU_RECEIVE_TYPE="open_id"
+FEISHU_MIN_SEVERITY="critical"
+
+# Append every normalized event (including non-critical ones) to a Feishu doc.
+# Set one target. For a Wiki target the node must resolve to a docx document.
+FEISHU_LOG_UPLOAD=true
+FEISHU_DOCX_TOKEN=""
+FEISHU_WIKI_TOKEN=""
+
+# Total send attempts and delays before retries. The disk scan runs only once.
+FEISHU_MAX_ATTEMPTS=4
+FEISHU_RETRY_DELAYS="5 30 120"
+# New installations enqueue disk messages for the independent alert worker.
+# Existing configurations without this key retain direct delivery for compatibility.
+ALERT_DELIVERY="queue"
 
 DU_TIMEOUT=1800
 ALERT_COOLDOWN_HOURS=20
