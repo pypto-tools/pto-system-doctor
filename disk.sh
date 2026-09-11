@@ -23,9 +23,14 @@ case "$MODE" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF="${PTO_CONFIG_FILE:-${CONFIG_FILE:-$SCRIPT_DIR/runtime/config/system-doctor.conf}}"
-STATE_DIR="${STATE_DIR:-$SCRIPT_DIR/runtime/state}"
-LOG_DIR="${LOG_DIR:-$SCRIPT_DIR/runtime/logs}"
+REQUESTED_STATE_DIR="${STATE_DIR:-}"
+REQUESTED_LOG_DIR="${LOG_DIR:-}"
+APP_DIR="$SCRIPT_DIR"
+# shellcheck source=runtime_paths.sh
+. "$SCRIPT_DIR/runtime_paths.sh"
+CONF="${PTO_CONFIG_FILE:-$CONFIG_FILE}"
+[[ -z "$REQUESTED_STATE_DIR" ]] || STATE_DIR="$REQUESTED_STATE_DIR"
+[[ -z "$REQUESTED_LOG_DIR" ]] || LOG_DIR="$REQUESTED_LOG_DIR"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/disk-monitor.log}"
 UNIFIED_STATE_DIR="$STATE_DIR"
 UNIFIED_LOG_FILE="$LOG_FILE"
@@ -116,7 +121,26 @@ fi
 
 # --- 3. Top N consumers ------------------------------------------------------
 log "scanning ${SCAN_DIR} for top ${TOP_N} consumers (timeout ${DU_TIMEOUT}s)..."
-TOP_RAW="$(timeout "${DU_TIMEOUT}" du -sh "${SCAN_DIR}"/*/ 2>/dev/null | sort -rh | head -n "${TOP_N}" || true)"
+SCAN_TARGETS=()
+for scan_dir in "${SCAN_DIR}"/*/; do
+    [ -d "$scan_dir" ] || continue
+    scan_name="${scan_dir%/}"
+    scan_name="${scan_name##*/}"
+    if [ "$scan_name" = "pyptouser" ]; then
+        for user_dir in "${scan_dir}"*/; do
+            [ -d "$user_dir" ] && SCAN_TARGETS+=("$user_dir")
+        done
+    else
+        SCAN_TARGETS+=("$scan_dir")
+    fi
+done
+
+if [ "${#SCAN_TARGETS[@]}" -eq 0 ]; then
+    TOP_RAW=""
+else
+    TOP_RAW="$(timeout "${DU_TIMEOUT}" du -sh -- "${SCAN_TARGETS[@]}" 2>/dev/null \
+        | sort -rh | head -n "${TOP_N}" || true)"
+fi
 
 if [ -z "$TOP_RAW" ]; then
     TOP_LIST="(scan returned nothing or timed out)"
@@ -155,7 +179,23 @@ ${TOP_LIST}
 ${ADVICE}"
 
 # --- 5. Send to Feishu -------------------------------------------------------
-send_feishu() {
+if [ "${ALERT_DELIVERY:-direct}" = "queue" ]; then
+    export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+    if PTO_TOOL_ROOT="$TOOL_ROOT" python3 -m modules.alert.cli enqueue \
+        --source disk \
+        --severity "$([ "$IS_ALERT" -eq 1 ] && echo critical || echo info)" \
+        --title "$HEADER" \
+        --body "$MESSAGE" \
+        --dedupe-key "disk-${MODE}" \
+        --cooldown "$(( ${ALERT_COOLDOWN_HOURS:-0} * 3600 ))" >/dev/null; then
+        log "queued ${MODE} message for asynchronous delivery."
+        exit 0
+    fi
+    log "failed to queue ${MODE} message."
+    exit 1
+fi
+
+send_feishu_once() {
     local text="$1"
     # Build JSON safely with a here-doc + python for escaping.
     local payload
@@ -171,6 +211,50 @@ print(json.dumps({"msg_type": "text", "content": {"text": os.environ["TEXT"]}}))
     # Feishu returns {"code":0,...} or {"StatusCode":0,...} on success.
     echo "$resp" | grep -Eq '"(code|StatusCode)" *: *0' || { log "feishu send NOT ok"; return 1; }
     return 0
+}
+
+send_feishu() {
+    local text="$1"
+    local max_attempts="${FEISHU_MAX_ATTEMPTS:-4}"
+    local retry_delays="${FEISHU_RETRY_DELAYS:-5 30 120}"
+    local -a delays=()
+    local attempt delay_index delay
+
+    [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]] || {
+        log "invalid FEISHU_MAX_ATTEMPTS: expected a positive integer"
+        return 1
+    }
+    read -r -a delays <<<"$retry_delays"
+    for delay in "${delays[@]}"; do
+        [[ "$delay" =~ ^[0-9]+$ ]] || {
+            log "invalid FEISHU_RETRY_DELAYS: expected space-separated non-negative integers"
+            return 1
+        }
+    done
+
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        log "feishu send attempt ${attempt}/${max_attempts}"
+        if send_feishu_once "$text"; then
+            return 0
+        fi
+        if (( attempt == max_attempts )); then
+            break
+        fi
+
+        delay_index=$((attempt - 1))
+        if (( ${#delays[@]} == 0 )); then
+            delay=0
+        elif (( delay_index < ${#delays[@]} )); then
+            delay="${delays[$delay_index]}"
+        else
+            delay="${delays[$((${#delays[@]} - 1))]}"
+        fi
+        log "feishu send failed; retrying in ${delay}s."
+        sleep "$delay"
+    done
+
+    log "feishu send exhausted after ${max_attempts} attempt(s)."
+    return 1
 }
 
 log "sending ${MODE} message to Feishu..."

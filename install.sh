@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TOOLS_ROOT="/home/pto-tools"; BIN_DIR="/usr/local/bin"
+TOOLS_ROOT="/home/pypto-tools"; BIN_DIR="/usr/local/bin"
 TOOL_NAME="pto-system-doctor"; LEGACY_TOOL_NAME="system-doctor"
 COMMAND_NAME="pto-system-doctor"; INIT_CONFIG=0
 RUN_USER="${SUDO_USER:-$(id -un)}"; RUN_GROUP="$(id -gn "$RUN_USER")"
 usage() { cat <<'EOF'
 Usage: ./install.sh [--tools-root DIR] [--init-config] [--bin-dir DIR]
 安装只更新 app/ 和公开命令，不运行诊断、不扫描磁盘、不发送飞书，
-也不会自动安装或启用 systemd timer。
+也不会自动安装或启用任何 systemd timer/service。
 EOF
 }
 while [[ $# -gt 0 ]]; do case "$1" in
@@ -35,9 +35,15 @@ cleanup() { rm -rf -- "$STAGE_DIR"; }; trap cleanup EXIT
 for file in pto-system-doctor network.sh disk.sh runtime_paths.sh systemd-manage.sh system-doctor.conf.example README.md; do
   install -m 0644 "$SOURCE_DIR/$file" "$STAGE_DIR/$file"
 done
-mkdir -p "$STAGE_DIR/systemd" "$STAGE_DIR/docs"
+mkdir -p "$STAGE_DIR/systemd" "$STAGE_DIR/docs" "$STAGE_DIR/config"
 install -m 0644 "$SOURCE_DIR"/systemd/* "$STAGE_DIR/systemd/"
-install -m 0644 "$SOURCE_DIR/docs/NETWORK_RUNBOOK.md" "$STAGE_DIR/docs/"
+install -m 0644 "$SOURCE_DIR"/docs/* "$STAGE_DIR/docs/"
+install -m 0644 "$SOURCE_DIR"/config/* "$STAGE_DIR/config/"
+while IFS= read -r source_file; do
+  relative="${source_file#"$SOURCE_DIR/"}"
+  mkdir -p "$STAGE_DIR/$(dirname "$relative")"
+  install -m 0644 "$source_file" "$STAGE_DIR/$relative"
+done < <(find "$SOURCE_DIR/modules" -type f -name '*.py' -print)
 mkdir -p "$STAGE_DIR/skills/pto-system-doctor/agents"
 install -m 0644 "$SOURCE_DIR/skills/pto-system-doctor/SKILL.md" \
   "$STAGE_DIR/skills/pto-system-doctor/"
@@ -48,6 +54,9 @@ OLD_APP=""; if [[ -e "$APP_DIR" ]]; then OLD_APP="$TOOL_ROOT/.app.previous.$$"; 
 mv "$STAGE_DIR" "$APP_DIR"; trap - EXIT; [[ -z "$OLD_APP" ]] || rm -rf -- "$OLD_APP"
 if [[ "$INIT_CONFIG" -eq 1 && ! -e "$TOOL_ROOT/config/system-doctor.conf" ]]; then
   install -o "$RUN_USER" -g "$RUN_GROUP" -m 0600 "$APP_DIR/system-doctor.conf.example" "$TOOL_ROOT/config/system-doctor.conf"
+fi
+if [[ "$INIT_CONFIG" -eq 1 && ! -e "$TOOL_ROOT/config/resource-guard.conf" ]]; then
+  install -o "$RUN_USER" -g "$RUN_GROUP" -m 0600 "$APP_DIR/config/resource-default.conf" "$TOOL_ROOT/config/resource-guard.conf"
 fi
 ln -sfn "$APP_DIR/pto-system-doctor" "$BIN_DIR/$COMMAND_NAME"
 echo "installed $COMMAND_NAME -> $APP_DIR/pto-system-doctor"
