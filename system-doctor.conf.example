@@ -6,6 +6,9 @@ SCAN_DIR="/home"
 THRESHOLD_PCT=10
 EXTRA_ALERT_MOUNTS="/:5"
 TOP_N=20
+# Set this on hosts behind NAT. If empty, the disk reporter tries a direct
+# request to api.ipify.org; it never uses an HTTP proxy for this lookup.
+SERVER_PUBLIC_IP=""
 
 # Legacy Feishu custom-bot settings. Used only by disk configurations that keep
 # ALERT_DELIVERY="direct"; the asynchronous worker never posts to this webhook.

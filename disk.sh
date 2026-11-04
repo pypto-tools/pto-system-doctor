@@ -155,6 +155,26 @@ fi
 # --- 4. Compose message ------------------------------------------------------
 NOW="$(date '+%Y-%m-%d %H:%M')"
 KW="${FEISHU_KEYWORD:+${FEISHU_KEYWORD} }"   # prefix keyword if configured
+# Prefer the configured public address: a host behind NAT cannot infer its
+# externally assigned address from a local network interface.
+PUBLIC_IP="${SERVER_PUBLIC_IP:-}"
+if [ -z "$PUBLIC_IP" ]; then
+    PUBLIC_IP="$(curl -4 -fsS --max-time 3 --noproxy '*' https://api.ipify.org 2>/dev/null || true)"
+fi
+if ! python3 - "$PUBLIC_IP" <<'PY'
+import ipaddress
+import sys
+
+try:
+    valid = ipaddress.ip_address(sys.argv[1]).is_global
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+then
+    log "public IP unavailable; set SERVER_PUBLIC_IP in the config"
+    PUBLIC_IP="未获取"
+fi
 
 if [ "$IS_ALERT" -eq 1 ]; then
     HEADER="⚠️ ${KW}磁盘紧急告警"
@@ -168,6 +188,7 @@ else
 fi
 
 MESSAGE="${HEADER}    ${NOW}
+服务器公网 IP：${PUBLIC_IP}
 ${ALERT_BLOCK}全盘概览（df -h）：
 ${DF_OVERVIEW}
 

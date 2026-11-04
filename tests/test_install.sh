@@ -65,6 +65,7 @@ printf '%s\n' \
   'TOP_N=1' \
   'FEISHU_WEBHOOK="https://example.invalid/webhook"' \
   'FEISHU_KEYWORD=""' \
+  'SERVER_PUBLIC_IP="8.8.8.8"' \
   'ALERT_DELIVERY="queue"' \
   'DU_TIMEOUT=1' \
   'ALERT_COOLDOWN_HOURS=0' >"$QUEUE_CONFIG"
@@ -74,6 +75,7 @@ PTO_TOOL_ROOT="$QUEUE_ROOT" PTO_CONFIG_FILE="$QUEUE_CONFIG" \
   "$REPO_DIR/disk.sh" report >/dev/null 2>&1
 unset -f curl
 [[ "$(find "$QUEUE_ROOT/state/alerts/pending" -type f -name '*.json' | wc -l)" -eq 1 ]]
+grep -q '服务器公网 IP：8.8.8.8' "$QUEUE_ROOT"/state/alerts/pending/*.json
 
 # A failed Feishu request retries only the send step and eventually succeeds.
 RETRY_CONFIG="$TEST_ROOT/retry.conf"
@@ -89,6 +91,7 @@ printf '%s\n' \
   'TOP_N=1' \
   'FEISHU_WEBHOOK="https://example.invalid/webhook"' \
   'FEISHU_KEYWORD=""' \
+  'SERVER_PUBLIC_IP="8.8.8.8"' \
   'FEISHU_MAX_ATTEMPTS=4' \
   'FEISHU_RETRY_DELAYS="0 0 0"' \
   'DU_TIMEOUT=1' \
@@ -132,6 +135,7 @@ printf '%s\n' \
   'TOP_N=10' \
   'FEISHU_WEBHOOK="https://example.invalid/webhook"' \
   'FEISHU_KEYWORD=""' \
+  'SERVER_PUBLIC_IP="8.8.8.8"' \
   'FEISHU_MAX_ATTEMPTS=1' \
   'FEISHU_RETRY_DELAYS=""' \
   'DU_TIMEOUT=10' \
@@ -157,6 +161,13 @@ unset -f curl
 grep -q 'alice' "$USER_SCAN_PAYLOAD"
 grep -q 'bob' "$USER_SCAN_PAYLOAD"
 grep -q 'charlie' "$USER_SCAN_PAYLOAD"
+python3 - "$USER_SCAN_PAYLOAD" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as payload:
+    assert "服务器公网 IP：8.8.8.8" in json.load(payload)["content"]["text"]
+PY
 ! grep -q 'pyptouser' "$USER_SCAN_PAYLOAD"
 
 MIGRATION_ROOT="$TEST_ROOT/migration-tools"

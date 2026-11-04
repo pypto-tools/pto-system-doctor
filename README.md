@@ -75,6 +75,7 @@ SCAN_DIR="/home"
 THRESHOLD_PCT=10
 EXTRA_ALERT_MOUNTS="/home:10"
 TOP_N=20
+SERVER_PUBLIC_IP=""  # NAT 环境建议填写实际公网 IP
 FEISHU_APP_ID=""
 FEISHU_APP_SECRET=""
 FEISHU_RECEIVE_ID=""
@@ -92,6 +93,8 @@ ALERT_DELIVERY="queue"
 
 磁盘报告默认统计 `SCAN_DIR` 下的一级目录；若其中存在 `pyptouser`，则展开统计该目录下
 每个用户子目录的占用，不把所有用户合并为一个 `pyptouser` 项。
+报告和告警都会携带服务器公网 IP。配置了 `SERVER_PUBLIC_IP` 时直接使用该值；未配置时
+尝试直连查询公网出口，查询失败会标为“未获取”，不会将代理出口误认为服务器 IP。
 
 告警 worker 使用企业自建应用，不使用群自定义机器人。默认只有 `critical` 事件通过
 `FEISHU_RECEIVE_ID` 私聊；`info` 和 `warning` 仅保留本地记录并追加到配置的 Docx/Wiki
