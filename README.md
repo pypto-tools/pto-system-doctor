@@ -86,13 +86,18 @@ FEISHU_DOCX_TOKEN=""
 # FEISHU_WIKI_TOKEN=""
 FEISHU_MAX_ATTEMPTS=4
 FEISHU_RETRY_DELAYS="5 30 120"
-DU_TIMEOUT=1800
+DU_TIMEOUT=3600
 ALERT_COOLDOWN_HOURS=20
 ALERT_DELIVERY="queue"
 ```
 
 磁盘报告默认统计 `SCAN_DIR` 下的一级目录；若其中存在 `pyptouser`，则展开统计该目录下
-每个用户子目录的占用，不把所有用户合并为一个 `pyptouser` 项。
+每个用户子目录的占用，不把所有用户合并为一个 `pyptouser` 项。扫描按目录并行（4 路），
+每个目录单独 `du`，单次 `DU_TIMEOUT` 超时只影响尚未扫完的目录。消息末尾固定带一行
+覆盖情况，例如“扫描覆盖：110/110 个目录，合计 14.2T（df 已用 15T）”；若超时或读取
+失败，该行改为“⚠️ 扫描未完成…”并列出未扫目录，Top 排名因此不会在无提示的情况下
+只覆盖一部分目录。`du -x` 保证不进入 `SCAN_DIR` 下的其他挂载点，避免容器 overlay
+挂载被重复统计。
 报告和告警都会携带服务器公网 IP。配置了 `SERVER_PUBLIC_IP` 时直接使用该值；未配置时
 尝试直连查询公网出口，查询失败会标为“未获取”，不会将代理出口误认为服务器 IP。
 

@@ -120,7 +120,8 @@ if [ "$MODE" = "alert" ]; then
 fi
 
 # --- 3. Top N consumers ------------------------------------------------------
-log "scanning ${SCAN_DIR} for top ${TOP_N} consumers (timeout ${DU_TIMEOUT}s)..."
+SCAN_WORKERS=4
+log "scanning ${SCAN_DIR} for top ${TOP_N} consumers (timeout ${DU_TIMEOUT}s, ${SCAN_WORKERS} workers)..."
 SCAN_TARGETS=()
 for scan_dir in "${SCAN_DIR}"/*/; do
     [ -d "$scan_dir" ] || continue
@@ -135,22 +136,99 @@ for scan_dir in "${SCAN_DIR}"/*/; do
     fi
 done
 
-if [ "${#SCAN_TARGETS[@]}" -eq 0 ]; then
-    TOP_RAW=""
-else
-    TOP_RAW="$(timeout "${DU_TIMEOUT}" du -sh -- "${SCAN_TARGETS[@]}" 2>/dev/null \
-        | sort -rh | head -n "${TOP_N}" || true)"
+# Each target is its own du invocation, so a slow or hung subtree cannot hold
+# back the rest and every finished target keeps its number. -x stays on
+# SCAN_DIR's filesystem: overlay mounts below it (e.g.
+# /data/docker/overlay2/*/merged) would otherwise be walked a second time.
+SCAN_TMP="$(mktemp -d "${TMPDIR:-/tmp}/pto-disk-scan.XXXXXX")"
+SCAN_OK="$SCAN_TMP/ok"
+SCAN_FAILED="$SCAN_TMP/failed"
+trap 'rm -rf -- "$SCAN_TMP"' EXIT
+: >"$SCAN_OK"
+: >"$SCAN_FAILED"
+
+scan_target() {
+    local dir="$1" out
+    if out="$(du -sx -B1 -- "$dir" 2>/dev/null)"; then
+        printf '%s\t%s\n' "${out%%[[:space:]]*}" "$dir" >>"$SCAN_OK"
+    else
+        printf '%s\n' "$dir" >>"$SCAN_FAILED"
+    fi
+}
+export -f scan_target
+export SCAN_OK SCAN_FAILED
+
+TOTAL_TARGETS="${#SCAN_TARGETS[@]}"
+SCAN_RC=0
+if [ "$TOTAL_TARGETS" -gt 0 ]; then
+    printf '%s\0' "${SCAN_TARGETS[@]}" |
+        timeout --kill-after=30 "${DU_TIMEOUT}" \
+            xargs -0 -P "$SCAN_WORKERS" -n 1 bash -c 'scan_target "$1"' _ ||
+        SCAN_RC=$?
 fi
 
-if [ -z "$TOP_RAW" ]; then
-    TOP_LIST="(scan returned nothing or timed out)"
-else
+DONE_N="$(awk 'END {print NR + 0}' "$SCAN_OK")"
+FAILED_N="$(awk 'END {print NR + 0}' "$SCAN_FAILED")"
+
+# Humanize byte counts the way du -h prints them: one decimal below 10 units.
+human_bytes() {
+    awk -v b="$1" 'BEGIN {
+        split("B K M G T P", units, " ")
+        i = 1
+        while (b >= 1024 && i < 6) { b /= 1024; i++ }
+        if (i == 1) { printf "%d%s\n", b, units[i]; exit }
+        fmt = (b < 10) ? "%.1f%s\n" : "%.0f%s\n"
+        printf fmt, b, units[i]
+    }'
+}
+
+TOTAL_BYTES="$(awk -F'\t' '{sum += $1} END {printf "%.0f", sum + 0}' "$SCAN_OK")"
+TOTAL_HUMAN="$(human_bytes "$TOTAL_BYTES")"
+
+if [ "$DONE_N" -gt 0 ]; then
     # Format: "  1. name   123G"
-    TOP_LIST="$(echo "$TOP_RAW" | awk '{
-        n=split($2, parts, "/"); name=parts[n-1];
-        printf "  %2d. %-18s %s\n", NR, name, $1
-    }')"
+    TOP_LIST="$(sort -t "$(printf '\t')" -k1,1 -n -r "$SCAN_OK" \
+        | head -n "$TOP_N" \
+        | awk -F'\t' '
+            function human(b,   units, i, fmt) {
+                split("B K M G T P", units, " ")
+                i = 1
+                while (b >= 1024 && i < 6) { b /= 1024; i++ }
+                if (i == 1) return sprintf("%d%s", b, units[i])
+                fmt = (b < 10) ? "%.1f%s" : "%.0f%s"
+                return sprintf(fmt, b, units[i])
+            }
+            {
+                name = $2
+                sub(/\/$/, "", name)
+                sub(/.*\//, "", name)
+                printf "  %2d. %-18s %s\n", NR, name, human($1)
+            }')"
+else
+    TOP_LIST="(scan returned nothing or timed out)"
 fi
+
+if [ "$TOTAL_TARGETS" -eq 0 ]; then
+    COVERAGE_LINE="扫描覆盖：${SCAN_DIR} 下没有可扫描目录"
+elif [ "$DONE_N" -eq "$TOTAL_TARGETS" ]; then
+    COVERAGE_LINE="扫描覆盖：${DONE_N}/${TOTAL_TARGETS} 个目录，合计 ${TOTAL_HUMAN}（df 已用 ${H_USED}）"
+else
+    if [ "$SCAN_RC" -eq 124 ] || [ "$SCAN_RC" -eq 137 ]; then
+        SCAN_REASON="超时 ${DU_TIMEOUT}s"
+    elif [ "$FAILED_N" -gt 0 ]; then
+        SCAN_REASON="部分目录读取失败"
+    else
+        SCAN_REASON="未完成"
+    fi
+    # A killed worker leaves no failure record, so the missing set is derived
+    # from the target list rather than from the failure file.
+    MISSING_NAMES="$(comm -23 \
+        <(printf '%s\n' "${SCAN_TARGETS[@]}" | sed 's|/$||' | sort) \
+        <(cut -f2 "$SCAN_OK" | sed 's|/$||' | sort) \
+        | sed 's|.*/||' | paste -sd ',' - | sed 's/,/, /g')"
+    COVERAGE_LINE="⚠️ 扫描未完成（${SCAN_REASON}）：${DONE_N}/${TOTAL_TARGETS} 个目录，合计 ${TOTAL_HUMAN}；未扫：${MISSING_NAMES}"
+fi
+log "scan finished: ${DONE_N}/${TOTAL_TARGETS} targets, ${TOTAL_HUMAN}, rc=${SCAN_RC}"
 
 # --- 4. Compose message ------------------------------------------------------
 NOW="$(date '+%Y-%m-%d %H:%M')"
@@ -196,6 +274,8 @@ ${MOUNT_POINT} 容量 ${H_SIZE} / 已用 ${H_USED} (${FS_USEPCT}%) / 剩余 ${H_
 
 ${SCAN_DIR} 占用 Top ${TOP_N}：
 ${TOP_LIST}
+
+${COVERAGE_LINE}
 
 ${ADVICE}"
 

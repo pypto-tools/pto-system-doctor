@@ -166,9 +166,70 @@ import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as payload:
-    assert "服务器公网 IP：8.8.8.8" in json.load(payload)["content"]["text"]
+    text = json.load(payload)["content"]["text"]
+assert "服务器公网 IP：8.8.8.8" in text
+assert "扫描覆盖：3/3 个目录" in text
 PY
 ! grep -q 'pyptouser' "$USER_SCAN_PAYLOAD"
+
+# A target that never finishes is reported as unscanned without hiding the rest.
+PARTIAL_SCAN="$TEST_ROOT/partial-scan"
+PARTIAL_STATE="$TEST_ROOT/partial-state"
+PARTIAL_LOGS="$TEST_ROOT/partial-logs"
+PARTIAL_PAYLOAD="$TEST_ROOT/partial-payload"
+mkdir -p "$PARTIAL_SCAN/fast" "$PARTIAL_SCAN/slow" \
+  "$PARTIAL_STATE" "$PARTIAL_LOGS"
+dd if=/dev/zero of="$PARTIAL_SCAN/fast/data" bs=4096 count=1 status=none
+dd if=/dev/zero of="$PARTIAL_SCAN/slow/data" bs=4096 count=1 status=none
+printf '%s\n' \
+  'MOUNT_POINT="/"' \
+  "SCAN_DIR=\"$PARTIAL_SCAN\"" \
+  'THRESHOLD_PCT=1' \
+  'EXTRA_ALERT_MOUNTS=""' \
+  'TOP_N=10' \
+  'FEISHU_WEBHOOK="https://example.invalid/webhook"' \
+  'FEISHU_KEYWORD=""' \
+  'SERVER_PUBLIC_IP="8.8.8.8"' \
+  'FEISHU_MAX_ATTEMPTS=1' \
+  'FEISHU_RETRY_DELAYS=""' \
+  'DU_TIMEOUT=2' \
+  'ALERT_COOLDOWN_HOURS=0' >"$TEST_ROOT/partial.conf"
+du() {
+  case "$*" in
+    */partial-scan/slow/*) sleep 30 ;;
+    *) command du "$@" ;;
+  esac
+}
+curl() {
+  local payload=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "-d" ]]; then
+      payload="$2"
+      shift 2
+    else
+      shift
+    fi
+  done
+  printf '%s\n' "$payload" >"$PARTIAL_PAYLOAD"
+  echo '{"code":0,"msg":"success"}'
+}
+export -f du curl
+PTO_CONFIG_FILE="$TEST_ROOT/partial.conf" STATE_DIR="$PARTIAL_STATE" \
+  LOG_DIR="$PARTIAL_LOGS" PARTIAL_PAYLOAD="$PARTIAL_PAYLOAD" \
+  "$REPO_DIR/disk.sh" report >/dev/null 2>&1
+unset -f du curl
+python3 - "$PARTIAL_PAYLOAD" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as payload:
+    text = json.load(payload)["content"]["text"]
+assert "扫描未完成（超时 2s）" in text, text
+assert "1/2 个目录" in text, text
+assert "未扫：slow" in text, text
+assert "fast" in text, text
+PY
+grep -q 'scan finished: 1/2 targets' "$PARTIAL_LOGS/disk-monitor.log"
 
 MIGRATION_ROOT="$TEST_ROOT/migration-tools"
 mkdir -p "$MIGRATION_ROOT/system-doctor/config" "$MIGRATION_ROOT/system-doctor/state"

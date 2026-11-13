@@ -37,7 +37,9 @@ FEISHU_RETRY_DELAYS="5 30 120"
 # Existing configurations without this key retain direct delivery for compatibility.
 ALERT_DELIVERY="queue"
 
-DU_TIMEOUT=1800
+# Overall wall-clock budget for the directory scan. A finished report states how
+# many directories were covered; on expiry the message lists the unscanned ones.
+DU_TIMEOUT=3600
 ALERT_COOLDOWN_HOURS=20
 
 # LOG_FILE and STATE_DIR default to the unified logs/ and state/ directories.
